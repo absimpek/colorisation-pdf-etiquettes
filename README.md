@@ -1,6 +1,6 @@
 # Microservice Render - Colorisation PDF étiquettes
 
-Version légère sans PyMuPDF, compatible Render Free.
+Version corrigée : la couleur est appliquée par-dessus le PDF avec transparence légère.
 
 ## Fichiers
 
@@ -8,21 +8,10 @@ Version légère sans PyMuPDF, compatible Render Free.
 - requirements.txt
 - render.yaml
 
-## Déploiement
+## Déploiement Render
 
-Sur Render :
-- Build Command : pip install -r requirements.txt
-- Start Command : gunicorn app:app
+Remplacer les fichiers dans GitHub, puis Render redéploie automatiquement.
 
 ## URL n8n
 
-Dans le node HTTP Request :
-
 https://TON-SERVICE.onrender.com/colorize-pdf
-
-## Body form-data
-
-- file : fichier PDF binaire
-- r : valeur rouge, ex 167
-- g : valeur verte, ex 199
-- b : valeur bleue, ex 231

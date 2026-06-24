@@ -25,13 +25,13 @@ def create_overlay(width, height, r, g, b):
     green = g / 255
     blue = b / 255
 
-    # Fond léger semi-transparent
-    c.setFillColor(Color(red, green, blue, alpha=0.22))
+    # Calque couleur par-dessus le PDF, mais très transparent
+    c.setFillColor(Color(red, green, blue, alpha=0.18))
     c.rect(0, 0, width, height, fill=1, stroke=0)
 
-    # Encadré visible
+    # Encadré coloré visible
     c.setStrokeColor(Color(red, green, blue, alpha=1))
-    c.setLineWidth(6)
+    c.setLineWidth(8)
     margin = 8
     c.rect(margin, margin, width - (margin * 2), height - (margin * 2), fill=0, stroke=1)
 
@@ -68,10 +68,12 @@ def colorize_pdf():
 
             overlay = create_overlay(width, height, r, g, b)
 
-            # On met l'overlay derrière le contenu existant.
-            # Méthode : overlay + page par-dessus.
-            overlay.merge_page(page)
-            writer.add_page(overlay)
+            # IMPORTANT :
+            # On garde la page originale, puis on fusionne le calque couleur par-dessus.
+            # L'ancienne version faisait l'inverse, donc la couleur passait derrière le fond blanc.
+            page.merge_page(overlay)
+
+            writer.add_page(page)
 
         with open(output_tmp.name, "wb") as f:
             writer.write(f)
