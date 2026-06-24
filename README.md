@@ -1,31 +1,28 @@
-# Microservice de colorisation PDF pour n8n
+# Microservice Render - Colorisation PDF étiquettes
 
-Ce mini-service reçoit un PDF en `POST /colorize-pdf`, applique un fond + encadré coloré, puis renvoie un PDF prêt à imprimer.
+Version légère sans PyMuPDF, compatible Render Free.
 
-## Déploiement Render
+## Fichiers
 
-1. Créer un repo GitHub.
-2. Ajouter ces fichiers :
-   - app.py
-   - requirements.txt
-   - render.yaml
-3. Aller sur Render > New > Web Service.
-4. Connecter le repo GitHub.
-5. Render détecte `render.yaml`.
-6. Déployer.
-7. Récupérer l'URL Render, par exemple :
-   https://colorisation-pdf-etiquettes.onrender.com
+- app.py
+- requirements.txt
+- render.yaml
 
-## URL à mettre dans n8n
+## Déploiement
+
+Sur Render :
+- Build Command : pip install -r requirements.txt
+- Start Command : gunicorn app:app
+
+## URL n8n
 
 Dans le node HTTP Request :
 
-https://TON-URL-RENDER.onrender.com/colorize-pdf
+https://TON-SERVICE.onrender.com/colorize-pdf
 
-## Test simple
+## Body form-data
 
-Ouvrir dans le navigateur :
-
-https://TON-URL-RENDER.onrender.com/health
-
-Si la page affiche `OK`, le service est actif.
+- file : fichier PDF binaire
+- r : valeur rouge, ex 167
+- g : valeur verte, ex 199
+- b : valeur bleue, ex 231

@@ -1,29 +1,48 @@
 from flask import Flask, request, send_file, jsonify
-from flask_cors import CORS
-import fitz  # PyMuPDF
+from pypdf import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.colors import Color
 import tempfile
 import os
+import io
 
 app = Flask(__name__)
-CORS(app)
 
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
         "status": "ok",
-        "message": "Microservice de colorisation PDF actif",
+        "message": "Microservice colorisation PDF actif",
         "endpoint": "/colorize-pdf",
         "method": "POST"
     })
 
-@app.route("/health", methods=["GET"])
-def health():
-    return "OK", 200
+def create_overlay(width, height, r, g, b):
+    packet = io.BytesIO()
+    c = canvas.Canvas(packet, pagesize=(width, height))
+
+    red = r / 255
+    green = g / 255
+    blue = b / 255
+
+    # Fond léger semi-transparent
+    c.setFillColor(Color(red, green, blue, alpha=0.22))
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+
+    # Encadré visible
+    c.setStrokeColor(Color(red, green, blue, alpha=1))
+    c.setLineWidth(6)
+    margin = 8
+    c.rect(margin, margin, width - (margin * 2), height - (margin * 2), fill=0, stroke=1)
+
+    c.save()
+    packet.seek(0)
+    return PdfReader(packet).pages[0]
 
 @app.route("/colorize-pdf", methods=["POST"])
 def colorize_pdf():
     if "file" not in request.files:
-        return jsonify({"error": "Aucun fichier reçu. Le champ form-data doit s'appeler 'file'."}), 400
+        return jsonify({"error": "Aucun fichier reçu. Le champ form-data doit s'appeler file."}), 400
 
     uploaded_file = request.files["file"]
 
@@ -34,60 +53,34 @@ def colorize_pdf():
     except ValueError:
         return jsonify({"error": "Les valeurs r, g, b doivent être des nombres."}), 400
 
-    # Sécurité simple
-    r = max(0, min(255, r))
-    g = max(0, min(255, g))
-    b = max(0, min(255, b))
-
-    color = (r / 255, g / 255, b / 255)
-
     input_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     output_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
 
     try:
         uploaded_file.save(input_tmp.name)
 
-        pdf = fitz.open(input_tmp.name)
+        reader = PdfReader(input_tmp.name)
+        writer = PdfWriter()
 
-        for page in pdf:
-            rect = page.rect
+        for page in reader.pages:
+            width = float(page.mediabox.width)
+            height = float(page.mediabox.height)
 
-            # Fond léger semi-transparent
-            page.draw_rect(
-                rect,
-                color=None,
-                fill=color,
-                overlay=True,
-                fill_opacity=0.22
-            )
+            overlay = create_overlay(width, height, r, g, b)
 
-            # Encadré coloré visible
-            margin = 8
-            border_rect = fitz.Rect(
-                rect.x0 + margin,
-                rect.y0 + margin,
-                rect.x1 - margin,
-                rect.y1 - margin
-            )
+            # On met l'overlay derrière le contenu existant.
+            # Méthode : overlay + page par-dessus.
+            overlay.merge_page(page)
+            writer.add_page(overlay)
 
-            page.draw_rect(
-                border_rect,
-                color=color,
-                width=6,
-                overlay=True
-            )
-
-        pdf.save(output_tmp.name, garbage=4, deflate=True)
-        pdf.close()
-
-        day = request.form.get("day", "jour")
-        download_name = f"etiquettes_{day}_colorees.pdf".replace(" ", "_")
+        with open(output_tmp.name, "wb") as f:
+            writer.write(f)
 
         return send_file(
             output_tmp.name,
             mimetype="application/pdf",
             as_attachment=True,
-            download_name=download_name
+            download_name="etiquettes_colorees.pdf"
         )
 
     except Exception as e:
@@ -95,7 +88,10 @@ def colorize_pdf():
 
     finally:
         try:
-            os.remove(input_tmp.name)
+            os.unlink(input_tmp.name)
         except Exception:
             pass
-        # Ne pas supprimer output_tmp avant send_file dans certains environnements WSGI.
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
