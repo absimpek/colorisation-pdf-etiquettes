@@ -19,8 +19,8 @@ def home():
 
 def create_overlay(width, height, r, g, b):
     """
-    Crée un calque PDF transparent qui sera posé PAR-DESSUS la page originale.
-    Important : on utilise setFillAlpha / setStrokeAlpha pour forcer la vraie transparence.
+    Crée un voile coloré AU-DESSUS du PDF.
+    Version renforcée pour que le rendu soit bien visible même sur fond blanc.
     """
 
     packet = io.BytesIO()
@@ -30,28 +30,28 @@ def create_overlay(width, height, r, g, b):
     green = g / 255
     blue = b / 255
 
-    # Voile coloré par-dessus le PDF.
-    # Augmente 0.30 à 0.35 ou 0.40 si tu veux une couleur plus visible.
+    # Plus la couleur est claire, plus on augmente l'opacité.
+    brightness = (r + g + b) / 3
+
+    if brightness > 230:
+        fill_alpha = 0.70
+    else:
+        fill_alpha = 0.50
+
+    # Voile coloré visible par-dessus la page
     c.saveState()
     c.setFillColorRGB(red, green, blue)
-    c.setFillAlpha(0.30)
+    c.setFillAlpha(fill_alpha)
     c.rect(0, 0, width, height, fill=1, stroke=0)
     c.restoreState()
 
-    # Encadré coloré autour de la page.
+    # Encadré coloré bien marqué
     c.saveState()
     c.setStrokeColorRGB(red, green, blue)
-    c.setStrokeAlpha(0.95)
-    c.setLineWidth(10)
+    c.setStrokeAlpha(1)
+    c.setLineWidth(14)
     margin = 8
-    c.rect(
-        margin,
-        margin,
-        width - (margin * 2),
-        height - (margin * 2),
-        fill=0,
-        stroke=1
-    )
+    c.rect(margin, margin, width - (margin * 2), height - (margin * 2), fill=0, stroke=1)
     c.restoreState()
 
     c.save()
@@ -65,7 +65,7 @@ def colorize_pdf():
     """
     Endpoint appelé par n8n.
     Attend un body form-data avec :
-    - file : le PDF
+    - file : PDF
     - r : rouge 0-255
     - g : vert 0-255
     - b : bleu 0-255
@@ -79,13 +79,18 @@ def colorize_pdf():
     uploaded_file = request.files["file"]
 
     try:
-        r = int(request.form.get("r", 217))
-        g = int(request.form.get("g", 217))
-        b = int(request.form.get("b", 217))
+        r = int(request.form.get("r", 211))
+        g = int(request.form.get("g", 211))
+        b = int(request.form.get("b", 211))
     except ValueError:
         return jsonify({
             "error": "Les valeurs r, g, b doivent être des nombres entre 0 et 255."
         }), 400
+
+    # Si n8n envoie le gris trop clair #F0F0F0, on le force en #D3D3D3,
+    # sinon sur une page blanche il paraît quasiment invisible.
+    if r >= 235 and g >= 235 and b >= 235:
+        r, g, b = 211, 211, 211
 
     for value, name in [(r, "r"), (g, "g"), (b, "b")]:
         if value < 0 or value > 255:
@@ -108,9 +113,7 @@ def colorize_pdf():
 
             overlay = create_overlay(width, height, r, g, b)
 
-            # IMPORTANT :
-            # On fusionne le calque couleur SUR la page originale.
-            # Donc le filtre coloré passe bien devant le fond blanc du PDF.
+            # Le calque est fusionné par-dessus la page originale
             page.merge_page(overlay)
 
             writer.add_page(page)
